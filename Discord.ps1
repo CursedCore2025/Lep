@@ -9,17 +9,34 @@ public class KeyboardListener {
 "@
 
 # Set folder paths
-$sourceRoot   = "D:\natty"
-$modPath      = Join-Path $sourceRoot "mod"
-$mainPath     = Join-Path $sourceRoot "main"
-$targetPath   = "C:\Users\mny pglu\AppData\Local\DiscordPTB\app-1.0.1148\modules\discord_voice-1\discord_voice"
+$sourceRoot = "D:\natty"
+$modPath    = Join-Path $sourceRoot "mod"
+$mainPath   = Join-Path $sourceRoot "main"
+
+# Automatically find the discord_voice path inside DiscordPTB
+function Get-DiscordVoicePath {
+    $basePath = "$env:LOCALAPPDATA\DiscordPTB"
+    if (-not (Test-Path $basePath)) { return $null }
+
+    $appFolder = Get-ChildItem -Path $basePath -Directory | Where-Object { $_.Name -like "app-*" } | Sort-Object Name -Descending | Select-Object -First 1
+    if (-not $appFolder) { return $null }
+
+    $modulesPath = Join-Path $appFolder.FullName "modules"
+    if (-not (Test-Path $modulesPath)) { return $null }
+
+    $discordVoiceFolder = Get-ChildItem -Path $modulesPath -Directory | Where-Object { $_.Name -like "discord_voice-*" } | Select-Object -First 1
+    if (-not $discordVoiceFolder) { return $null }
+
+    $finalPath = Join-Path $discordVoiceFolder.FullName "discord_voice"
+    return $finalPath
+}
 
 # Home key virtual code
-$HOME_KEY     = 0x24
-$lastState    = $false
+$HOME_KEY = 0x24
+$lastState = $false
 
 # Check if modded (by checking for 'node_modules' in target folder)
-function IsModded {
+function IsModded($targetPath) {
     $nodeModulesPath = Join-Path $targetPath "node_modules"
     return (Test-Path $nodeModulesPath)
 }
@@ -48,12 +65,19 @@ while ($true) {
     $state = [KeyboardListener]::GetAsyncKeyState($HOME_KEY) -band 0x8000
 
     if ($state -and -not $lastState) {
-        if (IsModded) {
-            ReplaceFolder -fromPath $mainPath -toPath $targetPath
-            Write-Host "➡️ Switched to DEFAULT version."
-        } else {
-            ReplaceFolder -fromPath $modPath -toPath $targetPath
-            Write-Host "➡️ Switched to MODDED version."
+        $targetPath = Get-DiscordVoicePath
+
+        if (-not $targetPath) {
+            Write-Host "`n❌ Could not find discord_voice folder automatically.`n"
+        }
+        else {
+            if (IsModded $targetPath) {
+                ReplaceFolder -fromPath $mainPath -toPath $targetPath
+                Write-Host "➡️ Switched to DEFAULT version."
+            } else {
+                ReplaceFolder -fromPath $modPath -toPath $targetPath
+                Write-Host "➡️ Switched to MODDED version."
+            }
         }
 
         Start-Sleep -Seconds 1
